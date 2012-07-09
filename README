@@ -1,0 +1,26 @@
+Thanks for using TownWarp:
+
+What does this do?
+This plugin allows users with permission (TW.use) to create announcements.  These announcements are chosen at random, 
+and one is displayed at each time interval (configurable).  If a user uses "/tw" or "/townwarp" at any time, they warp
+to the place where the latest announcement was made (ex, someone made the initial annoucement somewhere, you'll warp there)
+
+Commands:
+/tw: warps
+/townwarp: warps
+/twset <msg>: sets message as your announcement
+/twpreview: Previews the message you made
+
+OP
+/twpreview <player>: OP command, look at others announcement
+/twclear <player>: delete's a certain players announcement
+/twreset: reloads config, resets timer.
+
+Config file:
+delay: time between announcements (in minutes)
+
+nofile: Message to display if no file was found
+
+welcome: message displayed in each announcement if welcomeOn is set
+
+welcomeOn: boolean, whether the welcome message should be on or off.
