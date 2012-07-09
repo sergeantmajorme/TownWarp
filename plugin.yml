@@ -11,3 +11,5 @@ commands:
 permission:
     TW.use:
         description: who can make/clear their announcement
+    TW.mod:
+        description: gives permission to read others/clear others/reset

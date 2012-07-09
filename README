@@ -24,3 +24,7 @@ nofile: Message to display if no file was found
 welcome: message displayed in each announcement if welcomeOn is set
 
 welcomeOn: boolean, whether the welcome message should be on or off.
+
+info: Message under welcome, configurable seperatly.
+
+infoOn: just like welcomeOn

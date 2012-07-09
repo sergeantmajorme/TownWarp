@@ -23,6 +23,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class TownWarp extends JavaPlugin{
 	private Logger log;
 	private PluginManager pm;
+	private PlayerListener playerListener;
 	private String folder;
 	private Random rand = new Random();
 	private Location l;
@@ -32,6 +33,10 @@ public class TownWarp extends JavaPlugin{
 	private String noFile;
 	private String welcomeMessage;
 	private boolean welcomeOn;
+	private String infoMessage;
+	private boolean infoOn;
+	private vaultBridge vault;
+	private double cost;
 	
 	@Override
 	public void onEnable()
@@ -39,6 +44,7 @@ public class TownWarp extends JavaPlugin{
 		log = getServer().getLogger();
 		pm = getServer().getPluginManager();
 		folder = "plugins/TWData";
+		vault = new vaultBridge(this);
 		try{
 			File duck = new File(folder);
 			if (!duck.exists())
@@ -53,6 +59,8 @@ public class TownWarp extends JavaPlugin{
 		}
 		l = new Location(null, 0, 0, 0);
 		reset();
+		playerListener = new PlayerListener(this, config.getLong("delay"));
+		pm.registerEvents(playerListener, this);
 		log.info("[TownWarp] Loaded");
 	}
 	
@@ -69,6 +77,9 @@ public class TownWarp extends JavaPlugin{
 		noFile = config.getString("nofile");
 		welcomeMessage = config.getString("welcome");
 		welcomeOn = config.getBoolean("welcomeOn");
+		infoMessage = config.getString("info");
+		infoOn = config.getBoolean("infoOn");
+		cost = config.getDouble("cost");
 		activate();
 	}
 	
@@ -83,7 +94,7 @@ public class TownWarp extends JavaPlugin{
 		if (!(sender instanceof Player))
 			return true;
 		Player player = (Player) sender;
-		if (player.isOp() && (commandLabel.equalsIgnoreCase("twreset") 
+		if ((player.isOp() || player.hasPermission("TW.mod")) && (commandLabel.equalsIgnoreCase("twreset") 
 				|| commandLabel.equalsIgnoreCase("twclear")))
 		{//All OP commands (reset and clear)
 			if (commandLabel.equalsIgnoreCase("twreset"))
@@ -103,10 +114,10 @@ public class TownWarp extends JavaPlugin{
 				player.sendMessage("Incorrect command");
 			return true;
 		}
-		else if (commandLabel.equalsIgnoreCase("twpreview"))//player.hasPermission("TW.use") && 
+		else if (player.hasPermission("TW.use") && commandLabel.equalsIgnoreCase("twpreview"))
 		{//Preview your given announcement
 			String playerout = player.getName();
-			if (player.isOp() && args.length == 1)
+			if ((player.isOp() || player.hasPermission("TW.mod")) && args.length == 1)
 				playerout = args[0];//OP can check others files
 			File f = new File(folder + "/" + playerout + ".txt");
 			if (!f.exists())
@@ -116,8 +127,10 @@ public class TownWarp extends JavaPlugin{
 			}
 			try {
 				BufferedReader in = new BufferedReader(new FileReader(f));
+				String output = ChatColor.ITALIC + "[" + player.getName() + "] " + ChatColor.WHITE;
 				in.readLine();
-				printOut(in.readLine(), player);
+				output = output.concat(in.readLine());
+				printOut(output, player);
 				in.close();
 			} catch (FileNotFoundException e) {
 				log.info("Could not load player file " + player.getName());
@@ -127,12 +140,23 @@ public class TownWarp extends JavaPlugin{
 				e.printStackTrace();
 			}
 		}
-		else if (player.hasPermission("TW.use") && commandLabel.equalsIgnoreCase("twset"))
+		else if ((player.hasPermission("TW.use") || player.hasPermission("TW.mod")
+				|| player.isOp()) && commandLabel.equalsIgnoreCase("twset"))
 		{// Set your given announcement
+			if (!vault.economy.has(player.getName(), cost) && !player.hasPermission("TW.mod"))
+			{
+				player.sendMessage(ChatColor.RED + "You don't have enough! You need $" + cost + " to create a town warp!");
+				return true;
+			}
 			if (args.length < 1)
 				return false;
 			String test = setPlayerAnnouncement(player, args);
 			printOut(test, player);
+			if (!player.hasPermission("TW.mod"))
+			{
+				vault.economy.withdrawPlayer(player.getName(), cost);
+				player.sendMessage(ChatColor.GREEN + "$" + cost + " removed from your account");
+			}
 		}
 		else
 		{
@@ -172,6 +196,8 @@ public class TownWarp extends JavaPlugin{
 	public void activate() {
 		if (welcomeOn)
 			printOut(welcomeMessage);
+		if (infoOn)
+			printOut(infoMessage);
 		File f = new File(folder);
 		String[] annList = f.list();
 		int size = annList.length;
@@ -265,6 +291,6 @@ public class TownWarp extends JavaPlugin{
 	private void restartTimer()
 	{
 		t.purge();
-		t.schedule(new DelayTask(this), (long) timeDelay);
+		t.schedule(new AnnounceTime(this), (long) timeDelay);
 	}
 }
