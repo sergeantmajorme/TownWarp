@@ -1,0 +1,13 @@
+name: TownWarp
+main: me.SgtMjrME.TownWarp.TownWarp
+version: 0.01
+description: Announcer to warp players to random towns.
+
+commands:
+    townwarp:
+        description: Review all aliases
+        aliases: [tw, twreset, twclear, twpreview, twset]
+
+permission:
+    TW.use:
+        description: who can make/clear their announcement
