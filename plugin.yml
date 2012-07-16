@@ -2,14 +2,19 @@ name: TownWarp
 main: me.SgtMjrME.TownWarp.TownWarp
 version: 0.01
 description: Announcer to warp players to random towns.
+softdepend: [vault,PermissionsEx]
 
 commands:
     townwarp:
         description: Review all aliases
-        aliases: [tw, twreset, twclear, twpreview, twset]
+        aliases: [tw, twreset, twclear, twpreview, twset, twtp, twlist]
 
 permission:
     TW.use:
         description: who can make/clear their announcement
     TW.mod:
         description: gives permission to read others/clear others/reset
+    TW.color:
+        description: Permission to use color announcements
+    TW.rand:
+        description: Permission to use random characters.

