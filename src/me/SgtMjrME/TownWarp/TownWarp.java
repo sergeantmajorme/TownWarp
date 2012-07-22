@@ -64,6 +64,7 @@ public class TownWarp extends JavaPlugin{
 		{
 			log.info("Could not create folder");
 			pm.disablePlugin(this);
+			return;
 		}
 		l = new Location(null, 0, 0, 0);
 		t = new Timer();
@@ -76,9 +77,10 @@ public class TownWarp extends JavaPlugin{
 	@Override
 	public void onDisable()
 	{
+		t.cancel();
 	}
 	
-	public void reset()
+	private void reset()
 	{
 		loadConfig();
 		timeDelay = config.getDouble("delayAnnounce") * 1000 * 60;
@@ -94,25 +96,23 @@ public class TownWarp extends JavaPlugin{
 		activate();
 	}
 	
-	public void loadAllLocations()
+	private void loadAllLocations()
 	{
 		File f = new File(folder);
 		String[] allAnn = f.list();
-		try{
 		for (int x = 0; x < allAnn.length; x++)
 		{
+			try{
 			BufferedReader in = new BufferedReader(new FileReader(folder + "/" + allAnn[x]));
-			protect.put(allAnn[x], str2Loc(in.readLine()));
+			protect.put(allAnn[x].toLowerCase(), str2Loc(in.readLine()));
 			in.close();
+			}
+			catch (Exception e)
+			{
+				log.info("[WARNING] Could not load location protections for " + allAnn[x]);
+			}
 		}
-		}
-		catch (Exception e)
-		{
-			log.info(ChatColor.RED + "[WARNING] Could not load location protections");
-			e.printStackTrace();
-			protect.clear();
-			protectOn = false;
-		}
+		
 		log.info("[TownWarp] Protections loaded");
 	}
 	
@@ -131,9 +131,13 @@ public class TownWarp extends JavaPlugin{
 			}
 			else if (commandLabel.equalsIgnoreCase("twlist"))
 			{
-				Iterator<String> i = protect.keySet().iterator();
-				while (i.hasNext())
-					log.info(i.next());
+				File f = new File(folder);
+				if (f.exists())
+				{
+					String[] all = f.list();
+					for (int x = 0; x < all.length; x++)
+						log.info(all[x]);
+				}
 				return true;
 			}
 			else if (commandLabel.equalsIgnoreCase("twclear") && args.length == 1)
@@ -145,13 +149,13 @@ public class TownWarp extends JavaPlugin{
 					else
 						log.info("Protection not removed: use twreset to remove protection");
 					if (f.delete()){
-						log.info(ChatColor.GREEN + args[0] + " deleted");
+						log.info(args[0] + " deleted");
 					}
 					else
-						log.info(ChatColor.RED + "Could not delete file");
+						log.info("Could not delete file");
 				}
 				else
-					log.info(ChatColor.RED + "Could not locate file");
+					log.info("Could not locate file (correct capitalization?)");
 			}
 		}
 		if (!(sender instanceof Player))
@@ -166,22 +170,43 @@ public class TownWarp extends JavaPlugin{
 				|| commandLabel.equalsIgnoreCase("twclear") || commandLabel.equalsIgnoreCase("twlist")
 				|| commandLabel.equalsIgnoreCase("twtp")))
 		{//All OP commands (reset and clear)
+			try{
 			if (commandLabel.equalsIgnoreCase("twreset")){
 				reset();
 			}
 			else if (commandLabel.equalsIgnoreCase("twtp"))
 			{
-				if (args.length > 0 && protect.containsKey(args[0] + ".txt"))
-					player.teleport(protect.get(args[0] + ".txt"));
+				if (args.length > 0){
+					File f = new File(folder + "/" + args[0].toLowerCase() + ".txt");
+					if (!f.exists())
+					{
+						player.sendMessage("Player has not set a warp (correct capitalization?)");
+						return true;
+					}
+					try{
+						BufferedReader in = new BufferedReader(new FileReader(f));
+						player.teleport(str2Loc(in.readLine()));
+						in.close();
+					}
+					catch (Exception e)
+					{
+						player.sendMessage("Error teleporting");
+						e.printStackTrace();
+					}
+				}
 				else
-					player.sendMessage("Either not found, or no name given");
+					player.sendMessage("No name given to check against");
 				return true;
 			}
 			else if (commandLabel.equalsIgnoreCase("twlist"))
 			{
-				Iterator<String> i = protect.keySet().iterator();
-				while (i.hasNext())
-					player.sendMessage(i.next());
+				File f = new File(folder);
+				if (f.exists())
+				{
+					String[] all = f.list();
+					for (int x = 0; x < all.length; x++)
+						player.sendMessage(all[x]);
+				}
 				return true;
 			}
 			else if (commandLabel.equalsIgnoreCase("twclear") && args.length == 1)
@@ -204,6 +229,11 @@ public class TownWarp extends JavaPlugin{
 			else
 				player.sendMessage("Incorrect command");
 			return true;
+			}
+			catch (Exception e){
+				e.printStackTrace();
+				player.sendMessage(ChatColor.RED + "[Severe] " + commandLabel + " could not be run due to " + e.getMessage());
+			}
 		}
 		else if (player.hasPermission("TW.use") && commandLabel.equalsIgnoreCase("twpreview"))
 		{//Preview your given announcement
@@ -223,10 +253,10 @@ public class TownWarp extends JavaPlugin{
 				printOut(output, player);
 				in.close();
 			} catch (FileNotFoundException e) {
-				log.info("Could not load player file " + player.getName());
+				log.info("Could not load player file " + playerout);
 				e.printStackTrace();
 			} catch (IOException e) {
-				log.info("Could not output player file " + player.getName());
+				log.info("Could not output player file " + playerout);
 				e.printStackTrace();
 			}
 		}
@@ -272,7 +302,7 @@ public class TownWarp extends JavaPlugin{
 			}
 			else
 			{
-				Location temploc = protect.get(player.getName() + ".txt");
+				Location temploc = protect.get(player.getName().toLowerCase() + ".txt");
 				if (temploc != null){
 					temploc.setX(temploc.getX() + 0.5);
 					temploc.setZ(temploc.getZ() + 0.5);
@@ -280,7 +310,6 @@ public class TownWarp extends JavaPlugin{
 						player.sendMessage("You can't change your town warp while it's active!");
 						return null;
 					}
-					protect.remove(player.getName() + ".txt");
 				}
 			}
 			temp = player.getLocation();
@@ -290,7 +319,8 @@ public class TownWarp extends JavaPlugin{
 				player.sendMessage("Lava/water detected, not set");
 				return null;
 			}
-			protect.put(player.getName() + ".txt", temp);
+			protect.remove(player.getName().toLowerCase() + ".txt");
+			protect.put(player.getName().toLowerCase() + ".txt", temp);
 			BufferedWriter out = new BufferedWriter(new FileWriter(f));
 			String location = loc2str(temp);
 			out.write(location + "\n");
@@ -339,6 +369,8 @@ public class TownWarp extends JavaPlugin{
 	
 	private String removeRandom(String output)
 	{
+		output = output.replaceAll("&l", "");
+		output = output.replaceAll("&u", "");
 		return output.replaceAll("&k", "");
 	}
 
@@ -355,17 +387,7 @@ public class TownWarp extends JavaPlugin{
 			printOut(welcomeMessage);
 		if (infoOn)
 			printOut(infoMessage);
-		File f = new File(folder);
-		String[] annList = f.list();
-		int size = annList.length;
-		if (size <= 0)
-		{
-			getServer().broadcastMessage(noFile);
-			restartTimer();
-			return;
-		}
-		int pick = rand.nextInt(size);
-		announce(annList[pick]);
+		activate(true);
 	}
 	
 	public void activate(boolean dummy) {
@@ -412,7 +434,8 @@ public class TownWarp extends JavaPlugin{
 		catch (Exception e)
 		{
 			log.info("Could not announce, reload?");
-			e.printStackTrace();
+			log.info(e.getMessage());
+			getServer().broadcastMessage("[" + string + "] Could not be read/is corrupted. /tw warps to previous announcement");
 		}
 		restartTimer();
 	}
