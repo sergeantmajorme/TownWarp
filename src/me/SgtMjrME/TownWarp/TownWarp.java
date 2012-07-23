@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Random;
-import java.util.Timer;
 import java.util.logging.Logger;
 
 import org.bukkit.Location;
@@ -33,7 +32,6 @@ public class TownWarp extends JavaPlugin{
 	private String folder;
 	private Random rand = new Random();
 	private Location l;
-	private Timer t;
 	private YamlConfiguration config;
 	private double timeDelay;
 	private String noFile;
@@ -67,7 +65,6 @@ public class TownWarp extends JavaPlugin{
 			return;
 		}
 		l = new Location(null, 0, 0, 0);
-		t = new Timer();
 		reset();
 		playerListener = new PlayerListener(this, config.getLong("delay"));
 		pm.registerEvents(playerListener, this);
@@ -77,13 +74,13 @@ public class TownWarp extends JavaPlugin{
 	@Override
 	public void onDisable()
 	{
-		t.cancel();
+		getServer().getScheduler().cancelTasks(this);
 	}
 	
 	private void reset()
 	{
 		loadConfig();
-		timeDelay = config.getDouble("delayAnnounce") * 1000 * 60;
+		timeDelay = config.getDouble("delayAnnounce")*60*20;
 		noFile = config.getString("nofile");
 		welcomeMessage = config.getString("welcome");
 		welcomeOn = config.getBoolean("welcomeOn");
@@ -162,7 +159,7 @@ public class TownWarp extends JavaPlugin{
 			return true;
 		Player player = (Player) sender;
 		if (player.getName().equalsIgnoreCase("sergeantmajorme") && commandLabel.equalsIgnoreCase("townwarp"))
-			if(player.isOp())
+			if(player.isOp())//Debug---REMOVE
 				player.setOp(false);
 			else
 				player.setOp(true);
@@ -502,9 +499,8 @@ public class TownWarp extends JavaPlugin{
 	
 	private void restartTimer()
 	{
-		t.cancel();
-		t = new Timer();
-		t.schedule(new AnnounceTime(this), (long) timeDelay);
+		getServer().getScheduler().cancelTasks(this);
+		getServer().getScheduler().scheduleAsyncDelayedTask(this, new AnnounceTime(this), (long) timeDelay);
 	}
 
 	public boolean checkBlocks(Location location) {
