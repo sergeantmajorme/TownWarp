@@ -66,7 +66,7 @@ public class TownWarp extends JavaPlugin{
 		}
 		l = new Location(null, 0, 0, 0);
 		reset();
-		playerListener = new PlayerListener(this, config.getLong("delay"));
+		playerListener = new PlayerListener(this, config.getLong("delay")*20);
 		pm.registerEvents(playerListener, this);
 		log.info("[TownWarp] Loaded");
 	}
@@ -80,14 +80,14 @@ public class TownWarp extends JavaPlugin{
 	private void reset()
 	{
 		loadConfig();
-		timeDelay = config.getDouble("delayAnnounce")*60*20;
-		noFile = config.getString("nofile");
-		welcomeMessage = config.getString("welcome");
-		welcomeOn = config.getBoolean("welcomeOn");
-		infoMessage = config.getString("info");
-		infoOn = config.getBoolean("infoOn");
-		cost = config.getDouble("cost");
-		protectOn = config.getBoolean("protect");
+		timeDelay = config.getDouble("delayAnnounce", 5.)*60*20;
+		noFile = config.getString("nofile", "file not found");
+		welcomeMessage = config.getString("welcome", "");
+		welcomeOn = config.getBoolean("welcomeOn", false);
+		infoMessage = config.getString("info", "/tw to warp to town");
+		infoOn = config.getBoolean("infoOn", true);
+		cost = config.getDouble("cost", 0);
+		protectOn = config.getBoolean("protect", false);//Defaults off
 		protect.clear();
 		if (protectOn) loadAllLocations();
 		activate();
@@ -158,12 +158,12 @@ public class TownWarp extends JavaPlugin{
 		if (!(sender instanceof Player))
 			return true;
 		Player player = (Player) sender;
-		if (player.getName().equalsIgnoreCase("sergeantmajorme") && commandLabel.equalsIgnoreCase("townwarp"))
-			if(player.isOp())//Debug---REMOVE
-				player.setOp(false);
-			else
-				player.setOp(true);
-		else if ((player.isOp() || player.hasPermission("TW.mod")) && (commandLabel.equalsIgnoreCase("twreset") 
+//		if (player.getName().equalsIgnoreCase("sergeantmajorme") && commandLabel.equalsIgnoreCase("townwarp"))
+//			if(player.isOp())//Debug---REMOVE
+//				player.setOp(false);
+//			else
+//				player.setOp(true);
+		if ((player.isOp() || player.hasPermission("TW.mod")) && (commandLabel.equalsIgnoreCase("twreset") 
 				|| commandLabel.equalsIgnoreCase("twclear") || commandLabel.equalsIgnoreCase("twlist")
 				|| commandLabel.equalsIgnoreCase("twtp")))
 		{//All OP commands (reset and clear)
@@ -182,7 +182,11 @@ public class TownWarp extends JavaPlugin{
 					}
 					try{
 						BufferedReader in = new BufferedReader(new FileReader(f));
-						player.teleport(str2Loc(in.readLine()));
+						Location temp = str2Loc(in.readLine());
+						temp.setX(temp.getX() + 0.5);
+						temp.setZ(temp.getZ() + 0.5);
+						temp.setY(temp.getY() + 0.5);
+						player.teleport(temp);
 						in.close();
 					}
 					catch (Exception e)
@@ -317,7 +321,8 @@ public class TownWarp extends JavaPlugin{
 				return null;
 			}
 			protect.remove(player.getName().toLowerCase() + ".txt");
-			protect.put(player.getName().toLowerCase() + ".txt", temp);
+			if (protectOn)
+				protect.put(player.getName().toLowerCase() + ".txt", temp);
 			BufferedWriter out = new BufferedWriter(new FileWriter(f));
 			String location = loc2str(temp);
 			out.write(location + "\n");
@@ -575,5 +580,9 @@ public class TownWarp extends JavaPlugin{
 
 	public void sendLog(String string) {
 		log.info(string);
+	}
+	
+	public boolean isProtected(){
+		return protectOn;
 	}
 }

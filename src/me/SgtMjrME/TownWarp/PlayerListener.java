@@ -1,7 +1,6 @@
 package me.SgtMjrME.TownWarp;
 
-import java.util.ArrayList;
-import java.util.Timer;
+import java.util.HashMap;
 
 import org.bukkit.Location;
 import org.bukkit.event.EventHandler;
@@ -12,18 +11,18 @@ import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerKickEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 public class PlayerListener implements Listener{
 	private TownWarp plugin;
-	private ArrayList<String> delay = new ArrayList<String>();
+	private HashMap<String, Long> delayTime = new HashMap<String, Long>();
 	private long time;
-	private Timer t;
 	
 	PlayerListener(TownWarp townWarp, long time)
 	{
 		plugin = townWarp;
 		this.time = time;
-		t = new Timer();
 	}
 	
 	@EventHandler (priority = EventPriority.LOWEST)
@@ -32,17 +31,18 @@ public class PlayerListener implements Listener{
 		if (e.getPlayer().hasPermission("TW.mod") || e.getPlayer().isOp())
 			return;
 		String[] broken = e.getMessage().split(" ");
-		if (broken.length > 1)
+		if (broken.length >= 1)
 		{
 			if (broken[0].equalsIgnoreCase("/tw") || broken[0].equalsIgnoreCase("/townwarp")
 					|| broken[0].equalsIgnoreCase("/twpreview") || broken[0].equalsIgnoreCase("/twset"))
 			{
-				if (delay.contains(e.getPlayer().getName()))
+				if (delayTime.containsKey(e.getPlayer().getName()) && 
+						(System.currentTimeMillis() - delayTime.get(e.getPlayer().getName())) > (time * 1000)){
 					e.setCancelled(true);
+				}
 				else
 				{
-					delay.add(e.getPlayer().getName());
-					t.schedule(new DelayTask(this, e.getPlayer().getName()), time);
+					delayTime.put(e.getPlayer().getName(), System.currentTimeMillis());
 				}
 				
 			}
@@ -52,6 +52,8 @@ public class PlayerListener implements Listener{
 	@EventHandler (priority = EventPriority.LOWEST)
 	public void onBlockBreak(BlockBreakEvent e)
 	{
+		if (!plugin.isProtected())
+			return;
 		if (plugin.checkBlocks(e.getBlock().getLocation())){
 			e.setCancelled(true);
 			e.getPlayer().sendMessage("Cannot edit blocks in Town Warp zone");
@@ -61,6 +63,8 @@ public class PlayerListener implements Listener{
 	@EventHandler (priority = EventPriority.LOWEST)
 	public void onBlockPlace(BlockPlaceEvent e)
 	{
+		if (!plugin.isProtected())
+			return;
 		if (plugin.checkBox(e.getBlock().getLocation())){
 			e.setCancelled(true);
 			e.getPlayer().sendMessage("Cannot edit blocks in Town Warp zone");
@@ -70,6 +74,8 @@ public class PlayerListener implements Listener{
 	@EventHandler (priority = EventPriority.LOWEST)
 	public void onLiquid(BlockFromToEvent e)
 	{
+		if (!plugin.isProtected())
+			return;
 		if (plugin.checkLiq(e.getToBlock().getLocation()))
 			e.setCancelled(true);
 	}
@@ -77,13 +83,26 @@ public class PlayerListener implements Listener{
 	@EventHandler (priority = EventPriority.LOWEST)
 	public void PlayerEvent(PlayerBucketEmptyEvent e)
 	{
+		if (!plugin.isProtected())
+			return;
 		Location check = e.getPlayer().getTargetBlock(null, 100).getLocation();
 		check.add(0, 1, 0);
 		if (plugin.checkBoxLarge(check))
 			e.setCancelled(true);
 	}
+	
+	@EventHandler(priority = EventPriority.MONITOR)
+	public void onplayerLeave1(PlayerQuitEvent e){
+		delayTime.remove(e.getPlayer());
+	}
+	
+	@EventHandler(priority = EventPriority.MONITOR)
+	public void onPlayerLeave2(PlayerKickEvent e){
+		if (!e.isCancelled())
+			delayTime.remove(e.getPlayer());
+	}
 
 	public void deactivate(String player) {
-		delay.remove(player);
+		delayTime.remove(player);
 	}
 }
