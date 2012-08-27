@@ -285,8 +285,10 @@ public class TownWarp extends JavaPlugin{
 		}
 		else
 		{
-			if (l.getWorld() != null)
+			if (l.getWorld() != null){
 				player.teleport(l);
+				player.sendMessage(ChatColor.GRAY + "Teleporting...");
+			}
 			return true;
 		}
 		return false;
